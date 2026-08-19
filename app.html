@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPE StormCall — Crew Callout System (Prototype)</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --ring:rgba(11,11,11,0.10);
+    --blue:#2a78d6; --blue-deep:#1c5cab; --blue-100:#cde2fb; --blue-150:#b7d3f6;
+    --good:#0ca30c; --good-text:#006300; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --navy:#12203a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--ink);font-size:14px;line-height:1.45}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
+
+  /* ---------- top bar ---------- */
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;gap:16px;padding:10px 20px;position:sticky;top:0;z-index:50}
+  .topbar .logo{font-weight:800;font-size:16px;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+  .topbar .logo .bolt{color:var(--warning);font-size:18px}
+  .topbar .sub{font-size:12px;color:#b9c3d6}
+  .topbar .proto{margin-left:auto;font-size:11px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);padding:3px 10px;border-radius:99px;color:#dbe3f0}
+
+  /* ---------- nav tabs ---------- */
+  .nav{display:flex;gap:2px;background:var(--surface);border-bottom:1px solid var(--grid);padding:0 14px;position:sticky;top:44px;z-index:40;overflow-x:auto}
+  .nav button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 14px;font-size:13.5px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+  .nav button:hover{color:var(--ink)}
+  .nav button.active{color:var(--blue-deep);border-bottom-color:var(--blue)}
+  .nav button .badge{background:var(--critical);color:#fff;border-radius:99px;font-size:10.5px;padding:1px 6px;margin-left:5px;font-weight:700}
+  .nav button .badge.on{background:var(--good)}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:20px}
+  .view{display:none}
+  .view.active{display:block}
+  h2{font-size:19px;margin-bottom:4px}
+  .pagehint{color:var(--ink-2);font-size:13px;margin-bottom:18px}
+
+  /* ---------- cards / tiles ---------- */
+  .card{background:var(--surface);border:1px solid var(--ring);border-radius:10px;padding:16px 18px;box-shadow:0 1px 2px rgba(11,11,11,.04)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+  .tile{background:var(--surface);border:1px solid var(--ring);border-radius:10px;padding:14px 16px}
+  .tile .k{font-size:12px;color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .tile .v{font-size:26px;font-weight:750;margin-top:2px}
+  .tile .d{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;padding:8px 10px;border-bottom:1px solid var(--grid)}
+  td{padding:9px 10px;border-bottom:1px solid var(--grid);vertical-align:middle}
+  tr:hover td{background:#f4f6f9}
+  .num{font-variant-numeric:tabular-nums}
+
+  .chip{display:inline-block;font-size:11.5px;font-weight:650;border-radius:99px;padding:2px 9px;border:1px solid var(--ring);background:#f0efec;color:var(--ink-2)}
+  .chip.jl{background:var(--blue-100);color:var(--blue-deep);border-color:transparent}
+  .chip.al{background:#e8f1fc;color:#2a5f9e;border-color:transparent}
+  .chip.eo{background:#fdeee6;color:#9a4a1f;border-color:transparent}
+  .chip.gm{background:#eef3ea;color:#3f5a35;border-color:transparent}
+  .chip.fm{background:#efeafb;color:#4a3aa7;border-color:transparent}
+  .chip.mc{background:#f6efe0;color:#7a5a00;border-color:transparent}
+  .chip.da{background:#fbeaf1;color:#8f2f55;border-color:transparent}
+
+  .status{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .st-avail .dot{background:var(--good)} .st-avail{color:var(--good-text)}
+  .st-out .dot{background:var(--muted)} .st-out{color:var(--muted)}
+  .st-conf .dot{background:var(--good)} .st-conf{color:var(--good-text)}
+  .st-pend .dot{background:var(--warning)} .st-pend{color:#7a5a00}
+  .st-decl .dot{background:var(--critical)} .st-decl{color:var(--critical)}
+
+  /* ---------- buttons & inputs ---------- */
+  .btn{border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:13.5px}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--blue-deep)}
+  .btn-big{font-size:15px;padding:13px 22px;width:100%}
+  .btn-ghost{background:var(--surface);border:1px solid var(--baseline);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:var(--ink-2)}
+  .btn-danger{background:var(--critical);color:#fff}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+  .field input,.field select,.field textarea{width:100%;border:1px solid var(--baseline);border-radius:7px;padding:9px 10px;background:#fff}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--blue-150);border-color:var(--blue)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .toolbar input[type=text]{border:1px solid var(--baseline);border-radius:7px;padding:8px 12px;min-width:220px}
+  .toolbar select{border:1px solid var(--baseline);border-radius:7px;padding:8px 10px;background:#fff}
+
+  /* ---------- callout builder steppers ---------- */
+  .needs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:6px 0 4px}
+  .need{border:1px solid var(--grid);border-radius:9px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;background:#fff}
+  .need .nm{font-weight:650;font-size:13px}
+  .need .avail{font-size:11px;color:var(--muted)}
+  .stepper{display:flex;align-items:center;gap:8px}
+  .stepper button{width:28px;height:28px;border-radius:7px;border:1px solid var(--baseline);background:var(--surface);font-size:16px;font-weight:700;color:var(--ink-2)}
+  .stepper button:hover{border-color:var(--blue);color:var(--blue-deep)}
+  .stepper .qty{min-width:26px;text-align:center;font-weight:750;font-size:16px}
+
+  .smspreview{background:#f0efec;border:1px solid var(--grid);border-radius:9px;padding:12px 14px;font-size:13px;white-space:pre-wrap;color:var(--ink-2);font-family:ui-monospace,Menlo,Consolas,monospace}
+
+  /* ---------- fill board ---------- */
+  .fill{margin-bottom:14px}
+  .fill .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .fill .nm{font-weight:700;font-size:13.5px}
+  .fill .ct{font-size:13px;color:var(--ink-2)}
+  .fill .ct b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .meter{height:14px;background:var(--grid);border-radius:4px;overflow:hidden;position:relative}
+  .meter .bar{height:100%;background:var(--blue);border-radius:4px 0 0 4px;transition:width .4s ease;min-width:0}
+  .meter .bar.full{background:var(--good)}
+  .fill .done{color:var(--good-text);font-weight:700;font-size:12px}
+
+  /* ---------- phone simulator ---------- */
+  .simwrap{display:grid;grid-template-columns:340px 1fr;gap:22px;align-items:start}
+  @media(max-width:860px){.simwrap{grid-template-columns:1fr}}
+  .phone{width:330px;background:#111;border-radius:36px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.25);margin:0 auto}
+  .screen{background:#fff;border-radius:26px;overflow:hidden;display:flex;flex-direction:column;height:600px}
+  .phead{background:#f0efec;padding:14px 14px 10px;text-align:center;border-bottom:1px solid var(--grid)}
+  .phead .who{font-weight:700;font-size:13px}
+  .phead .numline{font-size:11px;color:var(--muted)}
+  .thread{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#fff}
+  .bub{max-width:82%;padding:9px 12px;border-radius:16px;font-size:13px;line-height:1.4;white-space:pre-wrap}
+  .bub.in{background:#e9e9eb;color:#111;align-self:flex-start;border-bottom-left-radius:4px}
+  .bub.out{background:var(--blue);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+  .bub .tstamp{display:block;font-size:10px;opacity:.65;margin-top:4px}
+  .bub a{color:inherit;font-weight:700;text-decoration:underline}
+  .pactions{padding:10px;border-top:1px solid var(--grid);display:flex;gap:8px;background:#fafaf9}
+  .pactions button{flex:1;border-radius:8px;padding:10px;font-weight:800;font-size:14px;border:none}
+  .yes{background:var(--good);color:#fff}
+  .no{background:var(--critical);color:#fff}
+  .linkbtn{background:var(--blue);color:#fff}
+
+  /* ---------- worker portal ---------- */
+  .portal{max-width:520px;margin:0 auto}
+  .portal .phero{background:var(--navy);color:#fff;border-radius:12px 12px 0 0;padding:20px 22px}
+  .portal .phero h3{font-size:17px;margin-bottom:2px}
+  .portal .phero .m{color:#b9c3d6;font-size:12.5px}
+  .portal .pbody{background:var(--surface);border:1px solid var(--ring);border-top:none;border-radius:0 0 12px 12px;padding:20px 22px}
+  .psec{margin-bottom:20px}
+  .psec h4{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--blue-deep);border-bottom:2px solid var(--blue-100);padding-bottom:5px;margin-bottom:12px}
+  .lock{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-bottom:10px}
+  .certs-added{list-style:none;margin-top:8px}
+  .certs-added li{font-size:12.5px;background:#f0efec;border-radius:6px;padding:6px 10px;margin-bottom:5px;display:flex;justify-content:space-between}
+  .okscreen{text-align:center;padding:50px 20px}
+  .okscreen .big{font-size:46px}
+  .okscreen h3{margin:10px 0 6px}
+  .okscreen p{color:var(--ink-2);max-width:400px;margin:0 auto 6px}
+
+  /* ---------- misc ---------- */
+  .split{display:grid;grid-template-columns:1.1fr .9fr;gap:20px;align-items:start}
+  @media(max-width:900px){.split{grid-template-columns:1fr}}
+  .notice{background:#eef4fc;border:1px solid var(--blue-150);border-radius:9px;padding:10px 14px;font-size:12.5px;color:#1c3a5e;margin-bottom:14px}
+  .empty{color:var(--muted);text-align:center;padding:36px 10px;font-size:13.5px}
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:12px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:all .25s;z-index:99;max-width:360px}
+  .toast.show{opacity:1;transform:none}
+  .mini{font-size:12px;color:var(--muted)}
+  .sec-title{font-size:15px;font-weight:750;margin:18px 0 10px}
+  .legendrow{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo"><span class="bolt">&#9889;</span> CPE StormCall <span class="sub">Center Phase Energy &middot; Storm Resource Callout</span></div>
+  <div class="proto">PROTOTYPE &mdash; SMS simulated, no real texts sent</div>
+</div>
+
+<div class="nav" id="nav">
+  <button data-view="roster" class="active">Roster</button>
+  <button data-view="callout">New Storm Call</button>
+  <button data-view="live">Live Event <span class="badge on" id="liveBadge" style="display:none">&#9679;</span></button>
+  <button data-view="denials">Denial Log <span class="badge" id="denBadge" style="display:none">0</span></button>
+  <button data-view="phone">&#128241; Worker Phone (demo)</button>
+  <button data-view="portal">Onboarding Portal (demo)</button>
+</div>
+
+<div class="wrap">
+
+<!-- ============ ROSTER ============ -->
+<div class="view active" id="view-roster">
+  <h2>Lineworker Repository</h2>
+  <div class="pagehint">Your master list of storm-response personnel. Import from a spreadsheet or add workers one at a time. In production this syncs with vendor rosters and keeps opt-in consent records for texting.</div>
+  <div class="tiles" id="rosterTiles"></div>
+  <div class="toolbar">
+    <input type="text" id="rSearch" placeholder="Search name or phone&hellip;">
+    <select id="rClass"><option value="">All classifications</option></select>
+    <select id="rRegion"><option value="">All regions</option></select>
+    <select id="rStatus"><option value="">All statuses</option><option>Available</option><option>On Assignment</option></select>
+    <span style="flex:1"></span>
+    <label class="btn btn-ghost" style="display:inline-block">
+      Import CSV <input type="file" id="csvFile" accept=".csv" style="display:none">
+    </label>
+    <button class="btn btn-primary" onclick="toggleAdd()">+ Add Worker</button>
+  </div>
+  <div class="card" id="addCard" style="display:none;margin-bottom:14px">
+    <div class="row3">
+      <div class="field"><label>Full name</label><input id="aName" placeholder="First Last"></div>
+      <div class="field"><label>Cell phone</label><input id="aPhone" placeholder="(555) 010-0000"></div>
+      <div class="field"><label>Classification</label><select id="aClass"></select></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Region</label><select id="aRegion"></select></div>
+      <div class="field"><label>Certifications</label><input id="aCerts" placeholder="CDL-A, OSHA-10&hellip;"></div>
+      <div class="field"><label>&nbsp;</label><button class="btn btn-primary" style="width:100%" onclick="addWorker()">Save Worker</button></div>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table>
+      <thead><tr><th>Name</th><th>Classification</th><th>Cell</th><th>Region</th><th>Certifications</th><th>Status</th><th>SMS Opt-in</th></tr></thead>
+      <tbody id="rosterBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ NEW STORM CALL ============ -->
+<div class="view" id="view-callout">
+  <h2>New Storm Call</h2>
+  <div class="pagehint">Set the event details, pick how many of each classification you need, review the text, and send. Matching available workers get the SMS at once.</div>
+  <div class="split">
+    <div class="card">
+      <div class="row2">
+        <div class="field"><label>Event name</label><input id="cEvent" value="Hurricane Delano Response"></div>
+        <div class="field"><label>Requesting vendor / utility</label><input id="cVendor" value="Sample Utility Co. (demo)"></div>
+      </div>
+      <div class="field"><label>Event location</label><input id="cLoc" value="Baton Rouge, LA"></div>
+      <div class="row3">
+        <div class="field"><label>Show-up date</label><input type="date" id="cDate"></div>
+        <div class="field"><label>Show-up time</label><input type="time" id="cTime" value="06:00"></div>
+        <div class="field"><label>Est. duration</label><input id="cDur" value="7&ndash;10 days"></div>
+      </div>
+      <div class="field"><label>Staging site / report-to</label><input id="cStage" value="Demo Staging Yard, 1000 Example Rd, Baton Rouge"></div>
+      <div class="field"><label>Extra info sent on YES (rates, per diem, lodging&hellip;)</label><textarea id="cNotes" rows="2">Placeholder rate text — real rates are entered per event. Per diem shown as $000/day for demo. Lodging arranged by CPE. Bring FR gear + rubber goods.</textarea></div>
+      <div class="sec-title" style="margin-top:6px">Crew needed</div>
+      <div class="needs" id="needs"></div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="sec-title" style="margin-top:0">Message preview</div>
+        <div class="smspreview" id="smsPreview"></div>
+        <div class="mini" style="margin-top:8px" id="segInfo"></div>
+      </div>
+      <div class="card">
+        <div class="sec-title" style="margin-top:0">Send summary</div>
+        <div id="sendSummary" class="mini" style="margin-bottom:12px"></div>
+        <button class="btn btn-primary btn-big" id="sendBtn" onclick="sendCallout()">&#9889; Send Storm Callout</button>
+        <div class="mini" style="margin-top:8px;text-align:center">Prototype: texts are simulated on-screen. Production sends via Twilio.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LIVE EVENT ============ -->
+<div class="view" id="view-live">
+  <h2 id="liveTitle">Live Event</h2>
+  <div class="pagehint" id="liveHint">No active storm call. Create one under &ldquo;New Storm Call.&rdquo;</div>
+  <div id="liveContent" style="display:none">
+    <div class="tiles" id="liveTiles"></div>
+    <div class="split">
+      <div>
+        <div class="card">
+          <div class="sec-title" style="margin-top:0">Crew fill board</div>
+          <div id="fillBoard"></div>
+          <div class="legendrow"><span><span class="dot" style="background:var(--blue)"></span> confirming</span><span><span class="dot" style="background:var(--good)"></span> &#10003; filled</span></div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="sec-title" style="margin-top:0">Simulation</div>
+          <div class="mini" style="margin-bottom:10px">In the real app, replies arrive from workers' phones via Twilio. Here you can simulate the roster responding, or answer manually as one worker in the Worker Phone tab.</div>
+          <button class="btn btn-ghost" id="simBtn" onclick="simulateReplies()">&#9654; Simulate incoming replies</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:14px 16px 0"><div class="sec-title" style="margin:0 0 8px">Responses</div></div>
+        <div style="max-height:520px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Worker</th><th>Class</th><th>Reply</th><th>Onboarding</th></tr></thead>
+          <tbody id="respBody"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DENIAL LOG ============ -->
+<div class="view" id="view-denials">
+  <h2>Denial Log</h2>
+  <div class="pagehint">Every NO reply is stamped and kept, per event, so you can track response rates and availability patterns over time.</div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table>
+      <thead><tr><th>Time</th><th>Event</th><th>Worker</th><th>Classification</th><th>Region</th><th>Reply</th></tr></thead>
+      <tbody id="denBody"><tr><td colspan="6" class="empty">No denials logged yet.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ PHONE SIM ============ -->
+<div class="view" id="view-phone">
+  <h2>Worker Phone (demo)</h2>
+  <div class="pagehint">This is what a lineworker sees. Send a storm call first, then pick a worker below and reply as them. A YES triggers the automatic info text with their personal onboarding link.</div>
+  <div class="simwrap">
+    <div>
+      <div class="field"><label>Viewing phone of</label><select id="phoneWorker" onchange="renderPhone()"></select></div>
+      <div class="phone">
+        <div class="screen">
+          <div class="phead"><div class="who" id="phWho">&mdash;</div><div class="numline">Text Message &middot; CPE StormCall &middot; (833) 555-0140</div></div>
+          <div class="thread" id="thread"><div class="empty" style="padding-top:120px">No messages yet.<br>Send a storm call first.</div></div>
+          <div class="pactions" id="pactions" style="display:none">
+            <button class="yes" onclick="workerReply(true)">Reply YES</button>
+            <button class="no" onclick="workerReply(false)">Reply NO</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title" style="margin-top:0">How the real flow works</div>
+      <div style="font-size:13.5px;color:var(--ink-2);line-height:1.7">
+        <b>1.</b> You hit Send &mdash; Twilio blasts the storm call to every matching, opted-in worker.<br>
+        <b>2.</b> Worker replies <b>YES</b> &rarr; instant auto-reply with rates, per diem, staging details, and a one-time secure link.<br>
+        <b>3.</b> Worker replies <b>NO</b> &rarr; logged to the Denial Log with a timestamp.<br>
+        <b>4.</b> If their classification is already filled when the YES arrives, they get a &ldquo;roster full &mdash; you're on standby&rdquo; message instead.<br>
+        <b>5.</b> The link opens their onboarding page (next tab) where they submit payment info, W-9, sizes, and certs.<br>
+        <b>6.</b> STOP/HELP keywords and opt-out handling are automatic through Twilio.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PORTAL ============ -->
+<div class="view" id="view-portal">
+  <h2>Worker Onboarding Portal (demo)</h2>
+  <div class="pagehint">This page opens from the link in the YES auto-reply, already tied to that worker and event &mdash; nothing to log into. Bank and tax data is encrypted; the link is single-use and expires.</div>
+  <div class="portal" id="portalBox"></div>
+</div>
+
+</div><!-- /wrap -->
+<div class="toast" id="toast"></div>
+<script>
+/* ================= data ================= */
+const CLASSES=[
+ {key:'jl',name:'Journeyman Lineman'},
+ {key:'al',name:'Apprentice Lineman'},
+ {key:'eo',name:'Equipment Operator'},
+ {key:'gm',name:'Groundman'},
+ {key:'fm',name:'Foreman'},
+ {key:'mc',name:'Mechanic'},
+ {key:'da',name:'Damage Assessor'}
+];
+const REGIONS=['TX-North','TX-Gulf','LA','OK','AR'];
+const FIRST=['Marcus','Dale','Travis','Jorge','Cody','Brandon','DeShawn','Wyatt','Ray','Colt','Miguel','Tanner','Chris','Lonnie','Pete','Jamal','Hank','Levi','Oscar','Bubba','Terry','Shane','Victor','Dustin','Earl','Randy','Tommy','Zach','Nate','Curtis','Felix','Garrett','Hector','Ivan','Jesse','Kyle','Leon','Manny','Norm','Owen','Paul','Quincy','Reid','Sam','Troy','Wade','Alan','Bo','Cliff','Drew'];
+const LAST=['Webb','Hutchins','Boudreaux','Ramirez','Stokes','Milam','Carter','Voss','Delgado','Pruitt','Hebert','Kaminski','Odom','Tran','Gable','Whitfield','Rich','Sosa','Landry','Metz','Irby','Nunez','Ott','Palmer','Quick','Reyes','Sikes','Tatum','Ulrich','Vance','Ward','Yates','Zeller','Ash','Bell','Cole','Dunn','Estes','Fox','Gray','Hale','Ives','Judd','Key','Lane','Mott','Nash','Orr','Pace','Rush'];
+const CERTPOOL=['CDL-A','CDL-B','OSHA-10','OSHA-30','First Aid/CPR','Rubber Glove','Crane Op','Flagger','Digger Derrick','Bucket Truck'];
+const CLASSMIX=['jl','jl','jl','al','al','al','al','eo','gm','fm','jl','al','eo','gm','mc','da','jl','al'];
+
+let workers=[];
+(function seed(){
+  let id=1;
+  for(let i=0;i<90;i++){
+    const cls=CLASSMIX[i%CLASSMIX.length];
+    const certs=[CERTPOOL[i%10]]; if(i%3===0)certs.push(CERTPOOL[(i+4)%10]); if(cls==='jl')certs.push('Rubber Glove');
+    workers.push({
+      id:id++,
+      name:FIRST[i%50]+' '+LAST[(i*7+3)%50],
+      phone:'(555) 01'+String(i%10)+'-'+String(1000+i*37%9000).padStart(4,'0'),
+      cls, region:REGIONS[(i*3)%5],
+      certs:[...new Set(certs)].join(', '),
+      status:(i%9===7)?'On Assignment':'Available',
+      optin:i%23!==11
+    });
+  }
+})();
+const clsName=k=>CLASSES.find(c=>c.key===k).name;
+let event_=null, denials=[], phoneSel=null, portalWorker=null;
+
+/* ================= helpers ================= */
+const $=id=>document.getElementById(id);
+function toast(m){const t=$('toast');t.innerHTML=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),3200)}
+function now(){return new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+/* ================= nav ================= */
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
+function showView(v){
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));
+  if(v==='portal')renderPortal();
+  if(v==='phone')renderPhone();
+}
+
+/* ================= roster ================= */
+function rosterTiles(){
+  const av=workers.filter(w=>w.status==='Available').length;
+  const cnt=k=>workers.filter(w=>w.cls===k).length;
+  $('rosterTiles').innerHTML=`
+   <div class="tile"><div class="k">Total roster</div><div class="v">${workers.length}</div><div class="d">${workers.filter(w=>w.optin).length} opted in to SMS</div></div>
+   <div class="tile"><div class="k">Available now</div><div class="v" style="color:var(--good-text)">${av}</div><div class="d">${workers.length-av} on assignment</div></div>
+   <div class="tile"><div class="k">Journeymen</div><div class="v">${cnt('jl')}</div><div class="d">linemen</div></div>
+   <div class="tile"><div class="k">Apprentices</div><div class="v">${cnt('al')}</div><div class="d">linemen</div></div>
+   <div class="tile"><div class="k">Equipment Ops</div><div class="v">${cnt('eo')}</div><div class="d">operators</div></div>`;
+}
+function renderRoster(){
+  rosterTiles();
+  const q=$('rSearch').value.toLowerCase(), fc=$('rClass').value, fr=$('rRegion').value, fs=$('rStatus').value;
+  const rows=workers.filter(w=>
+    (!q||w.name.toLowerCase().includes(q)||w.phone.includes(q))&&
+    (!fc||w.cls===fc)&&(!fr||w.region===fr)&&(!fs||w.status===fs));
+  $('rosterBody').innerHTML=rows.map(w=>`<tr>
+    <td><b>${esc(w.name)}</b></td>
+    <td><span class="chip ${w.cls}">${clsName(w.cls)}</span></td>
+    <td class="num">${w.phone}</td><td>${w.region}</td>
+    <td class="mini">${esc(w.certs)}</td>
+    <td><span class="status ${w.status==='Available'?'st-avail':'st-out'}"><span class="dot"></span>${w.status}</span></td>
+    <td>${w.optin?'<span class="status st-conf"><span class="dot"></span>Yes</span>':'<span class="status st-decl"><span class="dot"></span>No</span>'}</td>
+  </tr>`).join('')||'<tr><td colspan="7" class="empty">No workers match.</td></tr>';
+}
+['rSearch','rClass','rRegion','rStatus'].forEach(id=>$(id).addEventListener('input',renderRoster));
+function toggleAdd(){const c=$('addCard');c.style.display=c.style.display==='none'?'block':'none'}
+function addWorker(){
+  const n=$('aName').value.trim(),p=$('aPhone').value.trim();
+  if(!n||!p)return toast('Name and phone are required.');
+  workers.unshift({id:Date.now(),name:n,phone:p,cls:$('aClass').value,region:$('aRegion').value,certs:$('aCerts').value||'—',status:'Available',optin:true});
+  $('aName').value='';$('aPhone').value='';$('aCerts').value='';
+  renderRoster();buildNeeds();toast('Worker added. In production they get an opt-in confirmation text.');
+}
+$('csvFile').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const lines=rd.result.split(/\r?\n/).filter(x=>x.trim());
+    const hdr=lines[0].toLowerCase();
+    const start=hdr.includes('name')?1:0; let added=0;
+    for(let i=start;i<lines.length;i++){
+      const c=lines[i].split(',').map(x=>x.trim());
+      if(c.length<3||!c[0])continue;
+      const cls=(CLASSES.find(k=>k.name.toLowerCase()===(c[2]||'').toLowerCase())||{key:'gm'}).key;
+      workers.push({id:Date.now()+i,name:c[0],phone:c[1]||'',cls,region:c[3]||'TX-Gulf',certs:c[4]||'—',status:'Available',optin:true});
+      added++;
+    }
+    renderRoster();buildNeeds();toast(added+' workers imported from CSV.');
+  };
+  rd.readAsText(f); e.target.value='';
+});
+
+/* ================= callout builder ================= */
+let needQty={jl:15,al:30,eo:4,gm:0,fm:2,mc:0,da:0};
+function availCount(k){return workers.filter(w=>w.cls===k&&w.status==='Available'&&w.optin).length}
+function buildNeeds(){
+  $('needs').innerHTML=CLASSES.map(c=>`
+   <div class="need"><div><div class="nm">${c.name}</div><div class="avail">${availCount(c.key)} available</div></div>
+   <div class="stepper"><button onclick="bump('${c.key}',-1)">&minus;</button><span class="qty" id="q-${c.key}">${needQty[c.key]||0}</span><button onclick="bump('${c.key}',1)">+</button></div></div>`).join('');
+  updatePreview();
+}
+function bump(k,d){needQty[k]=Math.max(0,Math.min(availCount(k),(needQty[k]||0)+d));$('q-'+k).textContent=needQty[k];updatePreview()}
+function fmtShow(){
+  const d=$('cDate').value,t=$('cTime').value;
+  if(!d)return'[date] '+t;
+  const dt=new Date(d+'T'+(t||'06:00'));
+  return dt.toLocaleDateString([], {weekday:'short',month:'numeric',day:'numeric'})+' '+dt.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+' CT';
+}
+function smsBody(){
+  return '⚡ STORM CALL — CPE StormCall\n'+$('cEvent').value+' — '+$('cLoc').value+'\nShow up: '+fmtShow()+'\nEst. duration: '+$('cDur').value+'\n\nReply YES to accept · Reply NO to decline';
+}
+function updatePreview(){
+  const b=smsBody(); $('smsPreview').textContent=b;
+  const segs=Math.ceil(b.length/153)||1;
+  const total=CLASSES.reduce((s,c)=>s+(needQty[c.key]||0),0);
+  const recipients=CLASSES.filter(c=>needQty[c.key]>0).reduce((s,c)=>s+availCount(c.key),0);
+  $('segInfo').textContent=b.length+' characters ≈ '+segs+' SMS segment'+(segs>1?'s':'')+' per recipient';
+  $('sendSummary').innerHTML='Requesting <b>'+total+'</b> workers · Blasting to <b>'+recipients+'</b> matching available, opted-in phones (first to reply YES fills the slots).';
+  $('sendBtn').disabled=total===0;
+}
+['cEvent','cVendor','cLoc','cDate','cTime','cDur','cStage','cNotes'].forEach(id=>$(id).addEventListener('input',updatePreview));
+
+function sendCallout(){
+  if(!$('cDate').value){toast('Set a show-up date first.');return}
+  const needs={}; CLASSES.forEach(c=>{if(needQty[c.key]>0)needs[c.key]=needQty[c.key]});
+  const recip=workers.filter(w=>needs[w.cls]&&w.status==='Available'&&w.optin)
+    .map(w=>({id:w.id,reply:null,onboard:false,ts:null}));
+  event_={name:$('cEvent').value,vendor:$('cVendor').value,loc:$('cLoc').value,show:fmtShow(),
+    dur:$('cDur').value,stage:$('cStage').value,notes:$('cNotes').value,needs,recip,sentAt:now()};
+  denials=denials; // keep prior events' denials
+  $('liveBadge').style.display='inline-block';
+  toast('⚡ Callout sent to '+recip.length+' phones (simulated). Watch the Live Event board.');
+  phoneSel=null; renderLive(); fillPhoneSelect(); showView('live');
+}
+
+/* ================= live event ================= */
+function counts(){
+  const c={}; Object.keys(event_.needs).forEach(k=>c[k]=0);
+  event_.recip.forEach(r=>{const w=wk(r.id); if(r.reply==='yes')c[w.cls]++});
+  return c;
+}
+function wk(id){return workers.find(w=>w.id===id)}
+function renderLive(){
+  if(!event_)return;
+  $('liveTitle').textContent='Live Event — '+event_.name;
+  $('liveHint').textContent=event_.vendor+' · '+event_.loc+' · Show: '+event_.show+' · Sent '+event_.sentAt;
+  $('liveContent').style.display='block';
+  const conf=event_.recip.filter(r=>r.reply==='yes').length;
+  const dec=event_.recip.filter(r=>r.reply==='no').length;
+  const stb=event_.recip.filter(r=>r.reply==='standby').length;
+  const wait=event_.recip.filter(r=>!r.reply).length;
+  const needTotal=Object.values(event_.needs).reduce((a,b)=>a+b,0);
+  $('liveTiles').innerHTML=`
+   <div class="tile"><div class="k">Texts sent</div><div class="v">${event_.recip.length}</div><div class="d">at ${event_.sentAt}</div></div>
+   <div class="tile"><div class="k">Confirmed</div><div class="v" style="color:var(--good-text)">${conf} / ${needTotal}</div><div class="d">slots filled</div></div>
+   <div class="tile"><div class="k">Declined</div><div class="v" style="color:var(--critical)">${dec}</div><div class="d">logged to Denial Log</div></div>
+   <div class="tile"><div class="k">Standby</div><div class="v">${stb}</div><div class="d">YES after roster filled</div></div>
+   <div class="tile"><div class="k">Awaiting reply</div><div class="v" style="color:#7a5a00">${wait}</div><div class="d">no response yet</div></div>`;
+  const c=counts();
+  $('fillBoard').innerHTML=Object.keys(event_.needs).map(k=>{
+    const got=c[k],need=event_.needs[k],pct=Math.min(100,got/need*100),full=got>=need;
+    return `<div class="fill"><div class="top"><span class="nm">${clsName(k)}</span>
+      <span class="ct">${full?'<span class="done">✓ FILLED</span> ':''}<b>${got}</b> / ${need}</span></div>
+      <div class="meter"><div class="bar ${full?'full':''}" style="width:${pct}%"></div></div></div>`;
+  }).join('');
+  const replied=event_.recip.filter(r=>r.reply).sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  $('respBody').innerHTML=replied.map(r=>{
+    const w=wk(r.id);
+    const st=r.reply==='yes'?'<span class="status st-conf"><span class="dot"></span>YES · confirmed</span>'
+      :r.reply==='no'?'<span class="status st-decl"><span class="dot"></span>NO · declined</span>'
+      :'<span class="status st-pend"><span class="dot"></span>YES · standby</span>';
+    const ob=r.reply==='yes'?(r.onboard?'<span class="status st-conf"><span class="dot"></span>Complete</span>':'<span class="status st-pend"><span class="dot"></span>Link sent</span>'):'<span class="mini">—</span>';
+    return `<tr><td><b>${esc(w.name)}</b><div class="mini num">${w.phone}</div></td><td><span class="chip ${w.cls}">${clsName(w.cls)}</span></td><td>${st}</td><td>${ob}</td></tr>`;
+  }).join('')||'<tr><td colspan="4" class="empty">No replies yet. Hit &ldquo;Simulate incoming replies&rdquo; or answer in the Worker Phone tab.</td></tr>';
+  renderDenials();
+}
+function recordReply(r,yes){
+  const w=wk(r.id);
+  if(yes){
+    const c=counts();
+    r.reply=(c[w.cls]<event_.needs[w.cls])?'yes':'standby';
+  } else {
+    r.reply='no';
+    denials.push({t:now(),ev:event_.name,name:w.name,cls:w.cls,region:w.region,msg:'NO'});
+  }
+  r.ts=now();
+  return r.reply;
+}
+function simulateReplies(){
+  if(!event_)return;
+  const pending=event_.recip.filter(r=>!r.reply&&r.id!==phoneSel);
+  if(!pending.length)return toast('Everyone has replied.');
+  $('simBtn').disabled=true;
+  let i=0;
+  pending.forEach(r=>{
+    const roll=Math.random();
+    if(roll<0.20)return; // never replies
+    i++;
+    setTimeout(()=>{
+      recordReply(r,roll<0.72);
+      renderLive();
+      if(document.querySelector('#view-denials.active'))renderDenials();
+    },300+i*140+Math.random()*250);
+  });
+  setTimeout(()=>{$('simBtn').disabled=false;renderLive();toast('Reply wave complete. '+event_.recip.filter(r=>!r.reply).length+' still silent — in production you can re-blast non-responders.')},600+i*140+400);
+}
+
+/* ================= denial log ================= */
+function renderDenials(){
+  $('denBadge').style.display=denials.length?'inline-block':'none';
+  $('denBadge').textContent=denials.length;
+  $('denBody').innerHTML=denials.slice().reverse().map(d=>`<tr>
+    <td class="num">${d.t}</td><td>${esc(d.ev)}</td><td><b>${esc(d.name)}</b></td>
+    <td><span class="chip ${d.cls}">${clsName(d.cls)}</span></td><td>${d.region}</td>
+    <td><span class="status st-decl"><span class="dot"></span>NO</span></td></tr>`).join('')
+    ||'<tr><td colspan="6" class="empty">No denials logged yet.</td></tr>';
+}
+
+/* ================= phone sim ================= */
+function fillPhoneSelect(){
+  const s=$('phoneWorker');
+  if(!event_){s.innerHTML='<option>Send a storm call first</option>';return}
+  s.innerHTML=event_.recip.map(r=>{const w=wk(r.id);return `<option value="${w.id}">${esc(w.name)} — ${clsName(w.cls)}</option>`}).join('');
+  phoneSel=Number(s.value); renderPhone();
+}
+function renderPhone(){
+  if(!event_){return}
+  phoneSel=Number($('phoneWorker').value);
+  const r=event_.recip.find(x=>x.id===phoneSel), w=wk(phoneSel);
+  $('phWho').textContent=w.name+' · '+clsName(w.cls);
+  let h=`<div class="bub in">${esc(smsBodyFromEvent())}<span class="tstamp">${event_.sentAt}</span></div>`;
+  const pa=$('pactions');
+  if(!r.reply){
+    pa.style.display='flex';
+    pa.innerHTML='<button class="yes" onclick="workerReply(true)">Reply YES</button><button class="no" onclick="workerReply(false)">Reply NO</button>';
+  } else if(r.reply==='no'){
+    h+=`<div class="bub out">No<span class="tstamp">${r.ts}</span></div>`;
+    h+=`<div class="bub in">Got it — you're marked unavailable for ${esc(event_.name)}. You'll stay on the list for future storm calls.<span class="tstamp">${r.ts}</span></div>`;
+    pa.style.display='none';
+  } else if(r.reply==='standby'){
+    h+=`<div class="bub out">Yes<span class="tstamp">${r.ts}</span></div>`;
+    h+=`<div class="bub in">Thanks — the ${clsName(w.cls)} roster for ${esc(event_.name)} just filled. You're #1 on standby; we'll text you the moment a slot opens.<span class="tstamp">${r.ts}</span></div>`;
+    pa.style.display='none';
+  } else {
+    h+=`<div class="bub out">Yes<span class="tstamp">${r.ts}</span></div>`;
+    h+=`<div class="bub in">✅ You're CONFIRMED — ${esc(event_.name)}\nReport: ${esc(event_.stage)}\nShow: ${event_.show}\n${esc(event_.notes)}\n\nComplete onboarding before show-up (payment info, W-9, sizes, certs):\nhttps://go.cpe-storm.com/ob/${w.id}x7f2<span class="tstamp">${r.ts}</span></div>`;
+    pa.style.display='flex';
+    pa.innerHTML=r.onboard
+      ?'<button class="linkbtn" disabled style="opacity:.6">✓ Onboarding complete</button>'
+      :'<button class="linkbtn" onclick="openPortal()">\u{1F517} Open onboarding link</button>';
+  }
+  $('thread').innerHTML=h;
+  $('thread').scrollTop=$('thread').scrollHeight;
+}
+function smsBodyFromEvent(){
+  return '⚡ STORM CALL — CPE StormCall\n'+event_.name+' — '+event_.loc+'\nShow up: '+event_.show+'\nEst. duration: '+event_.dur+'\n\nReply YES to accept · Reply NO to decline';
+}
+function workerReply(yes){
+  const r=event_.recip.find(x=>x.id===phoneSel);
+  if(!r||r.reply)return;
+  recordReply(r,yes);
+  renderPhone();renderLive();
+  if(!yes)toast('Denial logged for '+wk(phoneSel).name+'.');
+}
+function openPortal(){portalWorker=phoneSel;showView('portal')}
+
+/* ================= portal ================= */
+function renderPortal(){
+  const box=$('portalBox');
+  let w=null,r=null;
+  if(event_&&portalWorker){r=event_.recip.find(x=>x.id===portalWorker);w=wk(portalWorker)}
+  if(!w||!r||r.reply!=='yes'){
+    box.innerHTML='<div class="card"><div class="empty">No active onboarding link.<br><br>Send a storm call, go to the <b>Worker Phone</b> tab, reply YES as a worker, then tap their onboarding link.</div></div>';
+    return;
+  }
+  if(r.onboard){
+    box.innerHTML=`<div class="card okscreen"><div class="big">✅</div><h3>You're all set, ${esc(w.name.split(' ')[0])}</h3><p>Onboarding for <b>${esc(event_.name)}</b> is complete. Dispatch has your payment info, sizes, and certs.</p><p><b>Show up:</b> ${event_.show}<br><b>Report to:</b> ${esc(event_.stage)}</p></div>`;
+    return;
+  }
+  box.innerHTML=`
+  <div class="phero"><h3>⚡ CPE Storm Onboarding</h3><div class="m">${esc(w.name)} · ${clsName(w.cls)} · ${esc(event_.name)} — ${esc(event_.loc)} · Show: ${event_.show}</div></div>
+  <div class="pbody">
+    <div class="lock">\u{1F512} Encrypted &middot; single-use link tied to your phone number &middot; expires in 24h</div>
+    <div class="psec"><h4>1 &middot; Payment (direct deposit)</h4>
+      <div class="row2">
+        <div class="field"><label>Account type</label><select id="pbType"><option>Checking</option><option>Savings</option></select></div>
+        <div class="field"><label>Bank name</label><input id="pbBank" placeholder="Bank name"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Routing number</label><input id="pbRout" inputmode="numeric" maxlength="9" placeholder="9 digits"></div>
+        <div class="field"><label>Account number</label><input id="pbAcct" inputmode="numeric" placeholder="Account #"></div>
+      </div>
+    </div>
+    <div class="psec"><h4>2 &middot; Tax (W-9)</h4>
+      <div class="row2">
+        <div class="field"><label>Legal name</label><input id="pbLegal" value="${esc(w.name)}"></div>
+        <div class="field"><label>SSN or EIN</label><input id="pbSsn" placeholder="XXX-XX-XXXX"></div>
+      </div>
+      <div class="field"><label>Home address</label><input id="pbAddr" placeholder="Street, city, state, ZIP"></div>
+    </div>
+    <div class="psec"><h4>3 &middot; Clothing / PPE sizes</h4>
+      <div class="row2">
+        <div class="field"><label>FR shirt</label><select id="pbShirt"><option>S</option><option>M</option><option selected>L</option><option>XL</option><option>2XL</option><option>3XL</option></select></div>
+        <div class="field"><label>Glove size</label><select id="pbGlove"><option>8</option><option>9</option><option selected>10</option><option>11</option><option>12</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Pant (waist &times; inseam)</label><input id="pbPant" placeholder="34 &times; 32"></div>
+        <div class="field"><label>Boot size</label><input id="pbBoot" placeholder="11"></div>
+      </div>
+    </div>
+    <div class="psec"><h4>4 &middot; Certifications</h4>
+      <div class="mini" style="margin-bottom:8px">On file: ${esc(w.certs)}. Upload photos or PDFs of current cards.</div>
+      <input type="file" id="pbFiles" multiple accept="image/*,.pdf" onchange="listCerts()">
+      <ul class="certs-added" id="certList"></ul>
+    </div>
+    <button class="btn btn-primary btn-big" onclick="submitPortal()">Submit onboarding</button>
+    <div class="mini" style="margin-top:8px;text-align:center">Prototype: nothing you type here is stored or sent anywhere.</div>
+  </div>`;
+}
+function listCerts(){
+  $('certList').innerHTML=[...$('pbFiles').files].map(f=>`<li><span>\u{1F4C4} ${esc(f.name)}</span><span class="mini">${(f.size/1024).toFixed(0)} KB</span></li>`).join('');
+}
+function submitPortal(){
+  if(!$('pbRout').value||!$('pbAcct').value){toast('Routing and account number are required.');return}
+  const r=event_.recip.find(x=>x.id===portalWorker);
+  r.onboard=true;
+  renderPortal();renderLive();renderPhone();
+  toast('✅ '+wk(portalWorker).name+' completed onboarding — visible on the Live Event board.');
+}
+
+/* ================= init ================= */
+(function init(){
+  $('rClass').innerHTML+=CLASSES.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
+  $('rRegion').innerHTML+=REGIONS.map(r=>`<option>${r}</option>`).join('');
+  $('aClass').innerHTML=CLASSES.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
+  $('aRegion').innerHTML=REGIONS.map(r=>`<option>${r}</option>`).join('');
+  const d=new Date(); d.setDate(d.getDate()+2);
+  $('cDate').value=d.toISOString().slice(0,10);
+  renderRoster(); buildNeeds(); fillPhoneSelect();
+})();
+</script>
+</body>
+</html>
